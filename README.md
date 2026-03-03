@@ -98,7 +98,7 @@ Run the MCP server directly with Python on your local machine.
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone https://github.com/aws-solutions-library-samples/guidance-for-deploying-sap-abap-accelerator-for-amazon-q-developer.git
 cd abap-accelerator
 
 # Install dependencies
