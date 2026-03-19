@@ -372,7 +372,8 @@ class ToolHandlers:
                 elif args.get('source_code'):
                     # Standard source update
                     result = await self.sap_client.update_source_with_syntax_check(
-                        object_name, object_type, args['source_code']
+                        object_name, object_type, args['source_code'],
+                        transport_request=args.get('transport_request')
                     )
                 else:
                     return "Error: Must provide source_code, methods, or add_interface for class updates"
@@ -381,7 +382,8 @@ class ToolHandlers:
                 if not args.get('source_code'):
                     return "Error: source_code is required for non-class objects"
                 result = await self.sap_client.update_source_with_syntax_check(
-                    object_name, object_type, args['source_code']
+                    object_name, object_type, args['source_code'],
+                    transport_request=args.get('transport_request')
                 )
             
             return self._format_object_operation_result(object_name, result, is_creation=False)
