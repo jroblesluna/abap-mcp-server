@@ -61,7 +61,8 @@ class CDSHandler:
         package_name: str,
         source_code: str,
         csrf_token: str,
-        cookies: List[str]
+        cookies: List[str],
+        transport_request: Optional[str] = None
     ) -> bool:
         """
         Create a CDS view following the exact SAP ADT workflow:
@@ -131,7 +132,7 @@ define view entity {sanitize_for_xml(name)} as select from dummy {{
             # STEP 3: Object Creation - Create empty CDS object shell (SKIP if object exists)
             if not is_update_mode:
                 logger.info(sanitize_for_logging('Step 3: Creating CDS object shell'))
-                object_created = await self._create_cds_object_shell(name, description, package_name, base_headers)
+                object_created = await self._create_cds_object_shell(name, description, package_name, base_headers, transport_request=transport_request)
                 if not object_created:
                     logger.error(sanitize_for_logging('CDS object shell creation failed'))
                     return False
@@ -159,7 +160,7 @@ define view entity {sanitize_for_xml(name)} as select from dummy {{
                 source_to_use = formatted_source or final_source_code
                 
                 # 5c: Update source with formatted code
-                source_updated = await self._update_source_code(name, source_to_use, lock_handle, base_headers)
+                source_updated = await self._update_source_code(name, source_to_use, lock_handle, base_headers, transport_request=transport_request)
                 if not source_updated:
                     logger.error(sanitize_for_logging('Source code update failed'))
                     return False
@@ -424,20 +425,27 @@ define view entity {sanitize_for_xml(name)} as select from dummy {{
     # Private helper methods following the TypeScript implementation
     
     async def _prepare_base_headers(self, csrf_token: str, cookies: List[str]) -> Dict[str, str]:
-        """Prepare base authentication and headers"""
-        base_headers = {
-            'X-CSRF-Token': csrf_token,
-            'x-csrf-token': csrf_token,
-            'User-Agent': self.USER_AGENT,
-            **self.COMMON_HEADERS
-        }
+        """Prepare base authentication and headers.
+        Uses sap_client._get_appropriate_headers() as the foundation to ensure
+        Authorization, CSRF token, and cookies are all included consistently."""
+        # Start with the sap_client's headers which include Authorization + CSRF
+        try:
+            base_headers = await self.sap_client._get_appropriate_headers()
+        except Exception:
+            base_headers = {}
+        
+        # Ensure CSRF token is set (override with the one passed in if available)
+        if csrf_token:
+            base_headers['X-CSRF-Token'] = csrf_token
+            base_headers['x-csrf-token'] = csrf_token
+        
+        # Add User-Agent and common headers
+        base_headers['User-Agent'] = self.USER_AGENT
+        base_headers.update(self.COMMON_HEADERS)
         
         # Add cookies if available (for session-based auth)
         if cookies:
             base_headers['Cookie'] = '; '.join([cookie.split(';')[0] for cookie in cookies])
-        
-        # For token-based authentication, we don't need Basic Auth header
-        # The session cookies and CSRF token provide authentication
         
         return base_headers
     
@@ -653,7 +661,8 @@ define view entity {sanitize_for_xml(name)} as select from dummy {{
         name: str,
         description: str,
         package_name: str,
-        base_headers: Dict[str, str]
+        base_headers: Dict[str, str],
+        transport_request: Optional[str] = None
     ) -> bool:
         """
         STEP 3: Create CDS object shell (empty object)
@@ -684,6 +693,8 @@ define view entity {sanitize_for_xml(name)} as select from dummy {{
             }
             
             params = {'sap-client': self.sap_client.connection.client}
+            if transport_request:
+                params['corrNr'] = transport_request
             
             async with self.sap_client.session.post(
                 f'{create_url}',
@@ -826,11 +837,12 @@ define view entity {sanitize_for_xml(name)} as select from dummy {{
         name: str,
         source_code: str,
         lock_handle: str,
-        base_headers: Dict[str, str]
+        base_headers: Dict[str, str],
+        transport_request: Optional[str] = None
     ) -> bool:
         """
         STEP 5c: Update source code with lock handle
-        PUT /sap/bc/adt/ddic/ddl/sources/{name}/source/main?lockHandle={handle}
+        PUT /sap/bc/adt/ddic/ddl/sources/{name}/source/main?lockHandle={handle}&corrNr={transport}
         """
         try:
             update_url = f'/sap/bc/adt/ddic/ddl/sources/{name.lower()}/source/main'
@@ -838,6 +850,8 @@ define view entity {sanitize_for_xml(name)} as select from dummy {{
                 'lockHandle': lock_handle,
                 'sap-client': self.sap_client.connection.client
             }
+            if transport_request:
+                params['corrNr'] = transport_request
             
             update_headers = {
                 **base_headers,
