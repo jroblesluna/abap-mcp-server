@@ -33,7 +33,8 @@ class ServiceBindingHandler:
         description: str,
         package_name: str,
         service_definition: str,
-        binding_type: str = 'ODATA_V4_UI'
+        binding_type: str = 'ODATA_V4_UI',
+        transport_request: Optional[str] = None
     ) -> bool:
         """
         Create a Service Binding following SAP ADT workflow:
@@ -81,7 +82,8 @@ class ServiceBindingHandler:
             
             # Step 4: Creation
             creation_success = await self._create_service_binding_object(
-                safe_name, safe_description, safe_package_name, safe_service_definition, safe_binding_type
+                safe_name, safe_description, safe_package_name, safe_service_definition, safe_binding_type,
+                transport_request=transport_request
             )
             if not creation_success:
                 logger.error(sanitize_for_logging('Service binding creation failed'))
@@ -197,7 +199,8 @@ class ServiceBindingHandler:
         description: str,
         package_name: str,
         service_definition: str,
-        binding_type: str
+        binding_type: str,
+        transport_request: Optional[str] = None
     ) -> bool:
         """
         Step 4: Create the service binding object
@@ -220,6 +223,8 @@ class ServiceBindingHandler:
             })
             
             params = {'sap-client': self.sap_client.connection.client}
+            if transport_request:
+                params['corrNr'] = transport_request
             
             logger.info(sanitize_for_logging(f'Creating Service Binding at URL: {create_url}'))
             
