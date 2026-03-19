@@ -161,15 +161,20 @@ class ABAPAcceleratorServer:
             object_type: str,
             source_code: Optional[str] = None,
             methods: Optional[List[Dict[str, Any]]] = None,
-            add_interface: Optional[str] = None
+            add_interface: Optional[str] = None,
+            transport_request: Optional[str] = None
         ) -> str:
-            """Update source code of ABAP object"""
+            """Update source code of an existing ABAP object.
+            Locks the object, writes source, then unlocks.
+            transport_request: transport/correction number for recording the change.
+              If not provided, the lock response transport is used (if any)."""
             return await self.tool_handlers.handle_update_source({
                 'object_name': object_name,
                 'object_type': object_type,
                 'source_code': source_code,
                 'methods': methods,
-                'add_interface': add_interface
+                'add_interface': add_interface,
+                'transport_request': transport_request
             })
         
         # Check syntax tool
