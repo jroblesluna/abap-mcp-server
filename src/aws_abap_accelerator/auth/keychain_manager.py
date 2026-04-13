@@ -144,6 +144,7 @@ class KeychainManager:
     def __init__(self):
         self.service_name = "sap-abap-accelerator-mcp"
         self._keyring = None
+        self._memory_store = {}
         self._initialize_keyring()
     
     def _initialize_keyring(self):
@@ -155,7 +156,6 @@ class KeychainManager:
             logger.info("Running in Docker container - using in-memory credential storage")
             logger.info("Keyring support available for local Windows/Mac development")
             self._keyring = None
-            self._memory_store = {}
             return
         
         try:

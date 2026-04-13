@@ -376,7 +376,7 @@ def create_oauth_provider():
                     # Priority: OAUTH_AUDIENCE > OKTA_AUDIENCE (backward compat) > auto-detect
                     configured_audience = os.getenv('OAUTH_AUDIENCE') or os.getenv('OKTA_AUDIENCE')
                     
-                    if configured_audience:
+                    if configured_audience and 'cognito' not in issuer.lower():
                         audience = configured_audience
                         logger.info(f"OAuth: Token audience (configured): {audience}")
                     else:
@@ -395,7 +395,7 @@ def create_oauth_provider():
                     token_verifier = JWTVerifier(
                         jwks_uri=jwks_uri,
                         issuer=issuer,
-                        audience=audience
+                        **({'audience': audience} if audience and 'cognito' not in issuer.lower() else {})
                         # NO required_scopes - it enforces scope validation and breaks tokens
                     )
                     logger.info("OAuth: ✓ Token verifier created (no required_scopes)")
@@ -418,7 +418,7 @@ def create_oauth_provider():
             "redirect_path": "/oauth/callback",
             "token_verifier": token_verifier,  # REQUIRED
             # CRITICAL: Must specify valid_scopes or registration will reject all scopes
-            "valid_scopes": ["openid", "email", "profile", "offline_access"],
+            "valid_scopes": ["openid", "email", "profile"] + ([] if 'cognito' in issuer.lower() else ["offline_access"]) + ([f"api://{audience}/access"] if audience and 'login.microsoftonline.com' in issuer else []),
         }
         
         # CRITICAL: Add jwt_signing_key for production
@@ -445,7 +445,7 @@ def create_oauth_provider():
         # Patch for MCP clients that send empty scopes during registration (Kiro compatibility)
         # Set _default_scope_str directly so clients that don't send scopes get defaults
         # This doesn't affect token validation, only registration fallback
-        default_scopes = ["openid", "email", "profile", "offline_access"]
+        default_scopes = oauth_kwargs["valid_scopes"]
         oauth_proxy._default_scope_str = " ".join(default_scopes)
         logger.info(f"OAuth: Set default registration scopes: {default_scopes}")
         
