@@ -1,0 +1,5 @@
+{
+    "ARN": "arn:aws:secretsmanager:us-west-2:064160142714:secret:mcp/abap-mcp-server/jwt-signing-key-zyLlUO",
+    "Name": "mcp/abap-mcp-server/jwt-signing-key",
+    "VersionId": "6b220cf2-9740-4245-9f6c-c7cf33be2c35"
+}

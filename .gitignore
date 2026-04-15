@@ -25,5 +25,7 @@ cdk.out
 **/data/**.csv
 
 .env
+.env.*
+!.env.example.*
 
 __pycache__/

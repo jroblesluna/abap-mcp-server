@@ -27,9 +27,11 @@ when credentials are missing. This is safe because:
 
 import os
 import logging
-from typing import Optional
+from typing import Dict, Optional # Dict for caching sub → username mapping from UserInfo endpoint
 
 logger = logging.getLogger(__name__)
+_userinfo_endpoint: Optional[str] = None # Cached from OIDC discovery — used to resolve email from upstream access token
+_sub_identity_cache: Dict[str, str] = {} # Cache: sub UUID → username (avoids a UserInfo call on every tool invocation)
 
 
 def _patch_oauth_proxy_for_okta(oauth_proxy):
@@ -320,6 +322,9 @@ def create_oauth_provider():
         client_id = os.getenv('OAUTH_CLIENT_ID')
         base_url = os.getenv('SERVER_BASE_URL')
         
+        if os.getenv('ENABLE_OAUTH_FLOW', 'false').lower() != 'true':
+            logger.info("OAuth: ENABLE_OAUTH_FLOW is not 'true', OAuth disabled")
+            return None
         if not all([auth_endpoint, token_endpoint, client_id, base_url]):
             logger.info("OAuth: Not all OAuth environment variables set, OAuth disabled")
             logger.info(f"OAuth:   OAUTH_AUTH_ENDPOINT: {'SET' if auth_endpoint else 'MISSING'}")
@@ -348,6 +353,7 @@ def create_oauth_provider():
         else:
             logger.info(f"OAuth:   JWT signing key: {len(jwt_signing_key)} chars ✓")
         
+        import httpx; _o = httpx.AsyncClient.__init__; httpx.AsyncClient.__init__ = lambda s,*a,**k: _o(s,*a,**{**k,'verify': False if os.getenv('SSL_VERIFY','true').lower()=='false' else True})
         # Create token_verifier - REQUIRED by OAuthProxy
         # This validates the UPSTREAM token from Okta
         token_verifier = None
@@ -369,6 +375,10 @@ def create_oauth_provider():
                 config = loop.run_until_complete(fetch_config())
                 jwks_uri = config.get('jwks_uri')
                 
+                global _userinfo_endpoint
+                _userinfo_endpoint = config.get('userinfo_endpoint')
+                if _userinfo_endpoint:
+                    logger.info(f"OAuth: UserInfo endpoint: {_userinfo_endpoint}")
                 if jwks_uri:
                     logger.info(f"OAuth: JWKS URI: {jwks_uri}")
                     
@@ -484,10 +494,9 @@ def extract_user_from_fastmcp_context(ctx) -> Optional[str]:
                 
                 # Try login identifier claims in priority order
                 # These represent what the user actually typed to login
-                for claim in ['login', 'upn', 'preferred_username', 'email', 'sub']:
+                for claim in ['username', 'login', 'upn', 'preferred_username', 'email', 'sub']:
                     if claim in claims and claims[claim]:
                         user_id = claims[claim]
-                        # DO NOT strip @domain - pass through as-is for certificate CN
                         logger.info(f"OAuth: Extracted login identifier '{user_id}' from claim '{claim}'")
                         return user_id
             
@@ -557,10 +566,33 @@ def extract_user_from_fastmcp_token(token) -> Optional[str]:
     """
     Extract user identity from FastMCP access token.
     
-    Returns the FULL login identifier (pass-through for certificate CN).
-    Do NOT strip the @domain part - SAP CERTRULE handles the mapping.
+    Returns the username/login identifier (pass-through for certificate CN).
+    It strips the @domain part - SAP CERTRULE might not handle the mapping.
     """
     try:
+        claims = getattr(token, 'claims', None) or {}
+        sub = claims.get('sub')
+        if sub:
+            if sub in _sub_identity_cache:
+                identity = _sub_identity_cache[sub]
+                logger.info(f"OAuth: Resolved '{sub}' → '{identity}' (cached)")
+                return identity
+            if _userinfo_endpoint:
+                import httpx as _httpx
+                access_token_str = getattr(token, 'token', None)
+                ssl_verify = os.getenv('SSL_VERIFY', 'true').lower() != 'false'
+                try:
+                    resp = _httpx.get(_userinfo_endpoint, headers={'Authorization': f'Bearer {access_token_str}'}, timeout=5.0, verify=ssl_verify)
+                    if resp.status_code == 200:
+                        userinfo = resp.json()
+                        identity = userinfo.get('email') or userinfo.get('preferred_username') or userinfo.get('username')
+                        if identity:
+                            identity = identity.split('@')[0].upper()
+                            _sub_identity_cache[sub] = identity
+                            logger.info(f"OAuth: Resolved '{sub}' → '{identity}' via UserInfo")
+                            return identity
+                except Exception as e:
+                    logger.warning(f"OAuth: UserInfo call failed: {e}")
         if hasattr(token, 'raw'):
             jwt_token = token.raw
         elif hasattr(token, 'token'):
@@ -572,6 +604,7 @@ def extract_user_from_fastmcp_token(token) -> Optional[str]:
         user_id = _extract_login_identifier_from_jwt(jwt_token)
         
         if user_id:
+            user_id = user_id.split('@')[0].upper() # Removes domain and converts to uppercase for SAP CERTRULE compatibility
             logger.info(f"OAuth: Extracted login identifier: {user_id}")
             return user_id
         
@@ -604,6 +637,8 @@ def get_user_from_request() -> Optional[str]:
 
 def is_fastmcp_oauth_available() -> bool:
     """Check if FastMCP OAuth is available and configured"""
+    if os.getenv('ENABLE_OAUTH_FLOW', 'false').lower() != 'true':
+        return False
     try:
         from fastmcp.server.auth import OAuthProxy
         

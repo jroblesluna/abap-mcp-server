@@ -1,0 +1,11 @@
+# Protect private key from being committed to version control
+*-key.pem
+*-private.*
+*.key
+
+# Allow public certificate to be committed
+!*-cert.pem
+
+# Allow README
+!README.md
+!.gitignore

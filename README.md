@@ -1,6 +1,6 @@
 # ABAP Accelerator MCP Server
 
-Enterprise-grade Model Context Protocol (MCP) server for SAP ABAP development, enabling AI-powered coding assistance through Amazon Q Developer and Kiro.
+Model Context Protocol (MCP) server for SAP ABAP development, enabling AI-powered coding assistance through Amazon Q Developer and Kiro.
 
 ## Table of Contents
 

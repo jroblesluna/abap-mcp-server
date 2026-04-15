@@ -1,0 +1,28 @@
+systems:
+  DV8:
+    host: sapdv8db1.comp.pge.com
+    port: 1443
+    client: 120
+    instance_number: "00"
+    language: EN
+    secure: true
+    ssl_verify: false
+    description: SAP Development System DV8 Client 120
+  MS1:
+    host: vhpgxms1ci.s4hc.pge.com
+    port: 44300
+    client: 100
+    instance_number: "00"
+    language: EN
+    secure: true
+    ssl_verify: false
+    description: SAP Development System MS1 Client 100
+  MD1:
+    host: vhpgxmd1ci.s4hc.pge.com
+    port: 44300
+    client: 100
+    instance_number: "00"
+    language: EN
+    secure: true
+    ssl_verify: false
+    description: SAP Development System MD1 Client 100

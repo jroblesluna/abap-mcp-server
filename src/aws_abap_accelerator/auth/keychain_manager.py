@@ -258,8 +258,7 @@ class KeychainManager:
             if self._keyring:
                 # Retrieve from OS keychain using service name and identifier as account
                 credential_json = self._keyring.get_password(self.service_name, keychain_identifier)
-            else:
-                # Retrieve from memory (fallback) - use identifier as key
+            if not credential_json:
                 credential_json = self._memory_store.get(keychain_identifier)
             
             if credential_json:
@@ -491,6 +490,7 @@ class KeychainManager:
             
             for system_id, system_config in systems.items():
                 host = system_config.get('host')
+                port = system_config.get('port')
                 client = system_config.get('client', '100')
                 description = system_config.get('description', '')
                 
@@ -498,6 +498,8 @@ class KeychainManager:
                     print(f"\nWARNING: Skipping {system_id} - no host configured")
                     continue
                 
+                if port and str(port) not in host: # Include port in host string if specified
+                    host = f"{host}:{port}"
                 print(f"\n[{system_id}] {host}")
                 if description:
                     print(f"  {description}")
