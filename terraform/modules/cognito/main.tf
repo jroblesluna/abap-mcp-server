@@ -263,10 +263,10 @@ resource "aws_cognito_user_pool" "main" {
   }
 
   schema {
-    name                     = "updated_at"
-    attribute_data_type      = "Number"
-    mutable                  = true
-    required                 = true
+    name                = "updated_at"
+    attribute_data_type = "Number"
+    mutable             = true
+    required            = true
     number_attribute_constraints {
       min_value = 0
     }
@@ -366,11 +366,11 @@ data "archive_file" "configure_managed_login" {
 resource "aws_lambda_function" "configure_managed_login" {
   filename         = data.archive_file.configure_managed_login.output_path
   function_name    = "${var.user_pool_name}-configure-managed-login"
-  role            = aws_iam_role.configure_managed_login.arn
-  handler         = "lambda_configure_managed_login.lambda_handler"
+  role             = aws_iam_role.configure_managed_login.arn
+  handler          = "lambda_configure_managed_login.lambda_handler"
   source_code_hash = data.archive_file.configure_managed_login.output_base64sha256
-  runtime         = "python3.12"
-  timeout         = 60
+  runtime          = "python3.12"
+  timeout          = 60
 
   environment {
     variables = {
@@ -441,15 +441,15 @@ resource "aws_cognito_user_pool_client" "main" {
   ]
 
   # OAuth configuration
-  supported_identity_providers = ["COGNITO"]
-  callback_urls                = var.callback_urls
-  allowed_oauth_flows          = ["code"]
-  allowed_oauth_scopes         = ["openid", "email", "phone", "profile"]
+  supported_identity_providers         = ["COGNITO"]
+  callback_urls                        = var.callback_urls
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_scopes                 = ["openid", "email", "phone", "profile"]
   allowed_oauth_flows_user_pool_client = true
 
   # Security
-  prevent_user_existence_errors = "ENABLED"
-  enable_token_revocation       = true
+  prevent_user_existence_errors                 = "ENABLED"
+  enable_token_revocation                       = true
   enable_propagate_additional_user_context_data = false
 
   # Auth session validity (minutes)

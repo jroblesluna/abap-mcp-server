@@ -83,6 +83,11 @@ variable "enable_principal_propagation" {
   type        = bool
 }
 
+variable "enable_oauth_flow" {
+  description = "Enable OAuth authentication flow"
+  type        = bool
+}
+
 variable "credential_provider" {
   description = "Credential provider"
   type        = string
@@ -99,8 +104,29 @@ variable "ca_certificate_secret_arn" {
   default     = ""
 }
 
+variable "ca_secret_name" {
+  description = "Name of CA certificate secret (for application to load from Secrets Manager)"
+  type        = string
+  default     = ""
+}
+
+variable "sap_endpoints_parameter" {
+  description = "SSM Parameter Store path for SAP endpoints configuration"
+  type        = string
+}
+
+variable "user_exceptions_parameter" {
+  description = "SSM Parameter Store path for user exceptions mapping"
+  type        = string
+}
+
 variable "oauth_secret_arn" {
   description = "ARN of OAuth secret"
+  type        = string
+}
+
+variable "jwt_signing_key_secret_arn" {
+  description = "ARN of JWT signing key secret"
   type        = string
 }
 
@@ -162,12 +188,6 @@ variable "log_level" {
 variable "enable_http_request_logging" {
   description = "Enable HTTP request logging"
   type        = string
-}
-
-variable "sap_systems_yaml" {
-  description = "YAML string containing SAP systems configuration for multi-system mode"
-  type        = string
-  default     = ""
 }
 
 variable "oauth_auth_endpoint" {

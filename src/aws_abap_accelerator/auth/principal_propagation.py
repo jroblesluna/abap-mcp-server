@@ -292,10 +292,13 @@ class PrincipalPropagationService:
         if not self._ca_loaded or not self._certificate_provider:
             raise ValueError("CA certificate not loaded. Cannot generate certificates.")
         
-        # Pass-through: use login_identifier directly as CN
-        # SAP CERTRULE will handle the mapping to SAP username
-        # Note: CN has 64 char limit, truncate if needed
-        cn_value = login_identifier
+        # Derive SAP username from login_identifier: strip email domain and uppercase
+        # e.g. avrg@pge.com -> AVRG (SAP LANID format for CERTRULE)
+        if '@' in login_identifier:
+            cn_value = login_identifier.split('@')[0].upper()
+        else:
+            cn_value = login_identifier.upper()
+        logger.info(f"Certificate CN derived: {login_identifier} -> {cn_value}")
         if len(cn_value) > 64:
             logger.warning(f"Login identifier exceeds 64 char CN limit, truncating: {cn_value}")
             cn_value = cn_value[:64]
@@ -348,10 +351,13 @@ class PrincipalPropagationService:
             sap_system_id=sap_system_id
         )
         
+        # Derive SAP username (LANID) same way as certificate CN
+        sap_username = login_identifier.split('@')[0].upper() if '@' in login_identifier else login_identifier.upper()
+
         return {
             'iam_identity': iam_identity,
-            'login_identifier': login_identifier,  # What was used as CN
-            'sap_username': login_identifier,  # For backward compatibility (SAP will map via CERTRULE)
+            'login_identifier': login_identifier,  # Original identity (email) for audit
+            'sap_username': sap_username,  # LANID used as cert CN (e.g. AVRG)
             'sap_system_id': sap_system_id,
             'cert_pem': cert_pem,
             'key_pem': key_pem,

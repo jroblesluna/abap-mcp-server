@@ -44,8 +44,12 @@ output "ca_certificate_secret_name" {
 
 output "sap_endpoints_parameter_name" {
   description = "AWS Parameter Store parameter name for SAP endpoints"
-  value       = module.parameters.sap_endpoints_parameter_name
-  sensitive   = true
+  value       = var.sap_endpoints_parameter
+}
+
+output "user_exceptions_parameter_name" {
+  description = "AWS Parameter Store parameter name for user exceptions"
+  value       = var.user_exceptions_parameter
 }
 
 output "certificate_arn" {
@@ -169,95 +173,7 @@ output "deployment_summary" {
 }
 
 # ============================================================================
-# Cognito Outputs (when enabled)
+# OAuth Configuration (Managed Externally)
 # ============================================================================
-
-output "cognito_user_pool_id" {
-  description = "Cognito User Pool ID"
-  value       = var.enable_cognito ? module.cognito[0].user_pool_id : "N/A - Cognito module not enabled"
-}
-
-output "cognito_user_pool_arn" {
-  description = "Cognito User Pool ARN"
-  value       = var.enable_cognito ? module.cognito[0].user_pool_arn : "N/A - Cognito module not enabled"
-}
-
-output "cognito_app_client_id" {
-  description = "Cognito App Client ID (OAuth Client ID)"
-  value       = var.enable_cognito ? module.cognito[0].app_client_id : "N/A - Cognito module not enabled"
-}
-
-output "cognito_hosted_ui_domain" {
-  description = "Cognito Hosted UI domain"
-  value       = var.enable_cognito ? module.cognito[0].user_pool_domain : "N/A - Cognito module not enabled"
-}
-
-output "cognito_oauth_endpoints" {
-  description = "OAuth endpoints for Cognito"
-  value = var.enable_cognito ? {
-    auth_endpoint  = module.cognito[0].oauth_auth_endpoint
-    token_endpoint = module.cognito[0].oauth_token_endpoint
-    issuer         = module.cognito[0].oauth_issuer
-  } : {}
-}
-
-output "cognito_hosted_ui_url" {
-  description = "Direct URL to test Cognito Hosted UI"
-  value       = var.enable_cognito ? module.cognito[0].hosted_ui_url : "N/A - Cognito module not enabled"
-}
-
-output "cognito_setup_commands" {
-  description = "Commands to create users and test Cognito"
-  value       = var.enable_cognito ? (<<-EOT
-    # Create a test user
-    aws cognito-idp admin-create-user \
-      --user-pool-id ${module.cognito[0].user_pool_id} \
-      --username testuser@example.com \
-      --user-attributes Name=email,Value=testuser@example.com Name=email_verified,Value=true \
-      --temporary-password TempPassword123! \
-      --region ${var.region}
-
-    # Set permanent password
-    aws cognito-idp admin-set-user-password \
-      --user-pool-id ${module.cognito[0].user_pool_id} \
-      --username testuser@example.com \
-      --password YourPassword123! \
-      --permanent \
-      --region ${var.region}
-
-    # Test Hosted UI (open in browser)
-    ${module.cognito[0].hosted_ui_url}
-
-    # Disable deletion protection (if you need to destroy)
-    aws cognito-idp update-user-pool \
-      --user-pool-id ${module.cognito[0].user_pool_id} \
-      --deletion-protection INACTIVE \
-      --region ${var.region}
-  EOT
-  ) : "N/A - Cognito module not enabled"
-}
-
-output "cognito_app_client_secret" {
-  description = "Cognito App Client Secret (OAuth Client Secret) - SENSITIVE"
-  value       = var.enable_cognito ? module.cognito[0].app_client_secret : "N/A - Cognito module not enabled"
-  sensitive   = true
-}
-
-output "hoot_mcp_inspector_config" {
-  description = "Complete OAuth configuration for Hoot/MCP Inspector (JSON format)"
-  value = var.enable_cognito ? jsonencode({
-    transport = "sse"
-    url       = "https://${local.application_fqdn}/mcp"
-    auth = {
-      type = "oauth"
-      oauth = {
-        authorizationUrl = module.cognito[0].oauth_auth_endpoint
-        tokenUrl         = module.cognito[0].oauth_token_endpoint
-        clientId         = module.cognito[0].app_client_id
-        clientSecret     = "(run: terraform output -raw cognito_app_client_secret)"
-        scope            = "openid email profile phone"
-        redirectUri      = "http://localhost:8009/oauth/callback"
-      }
-    }
-  }) : "N/A - Cognito module not enabled"
-}
+# NOTE: OAuth outputs removed - OAuth infrastructure managed by separate team
+# OAuth values configured in terraform.tfvars, not outputs from Terraform-managed resources

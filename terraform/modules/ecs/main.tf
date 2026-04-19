@@ -48,6 +48,10 @@ resource "aws_ecs_task_definition" "app" {
           value = tostring(var.enable_principal_propagation)
         },
         {
+          name  = "ENABLE_OAUTH_FLOW"
+          value = tostring(var.enable_oauth_flow)
+        },
+        {
           name  = "CREDENTIAL_PROVIDER"
           value = var.credential_provider
         },
@@ -104,10 +108,6 @@ resource "aws_ecs_task_definition" "app" {
           value = var.enable_http_request_logging
         },
         {
-          name  = "SAP_SYSTEMS_YAML"
-          value = var.sap_systems_yaml
-        },
-        {
           name  = "OAUTH_AUTH_ENDPOINT"
           value = var.oauth_auth_endpoint
         },
@@ -126,20 +126,42 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "SERVER_BASE_URL"
           value = var.server_base_url
+        },
+        {
+          name  = "CA_SECRET_NAME"
+          value = var.ca_secret_name
+        },
+        {
+          name  = "SAP_ENDPOINTS_PARAMETER"
+          value = var.sap_endpoints_parameter
+        },
+        {
+          name  = "USER_EXCEPTIONS_PARAMETER"
+          value = var.user_exceptions_parameter
         }
       ]
 
       secrets = concat(
         var.enable_principal_propagation && var.ca_certificate_secret_arn != "" ? [
           {
-            name      = "CA_CERTIFICATE_SECRET"
-            valueFrom = var.ca_certificate_secret_arn
+            name      = "CA_CERT"
+            valueFrom = "${var.ca_certificate_secret_arn}:ca_certificate::"
+          },
+          {
+            name      = "CA_KEY"
+            valueFrom = "${var.ca_certificate_secret_arn}:ca_private_key::"
           }
         ] : [],
         var.oauth_secret_arn != "" ? [
           {
             name      = "OAUTH_CLIENT_SECRET"
             valueFrom = "${var.oauth_secret_arn}:client_secret::"
+          }
+        ] : [],
+        var.jwt_signing_key_secret_arn != "" ? [
+          {
+            name      = "JWT_SIGNING_KEY"
+            valueFrom = "${var.jwt_signing_key_secret_arn}:jwt_signing_key::"
           }
         ] : [],
         var.sap_credentials_secret_arn != "" ? [
@@ -178,11 +200,11 @@ resource "aws_ecs_task_definition" "app" {
 
 # ECS Service
 resource "aws_ecs_service" "app" {
-  name               = "${var.name_prefix}-service"
-  cluster            = aws_ecs_cluster.main.id
-  task_definition    = aws_ecs_task_definition.app.arn
-  desired_count      = var.desired_count
-  launch_type        = "FARGATE"
+  name                   = "${var.name_prefix}-service"
+  cluster                = aws_ecs_cluster.main.id
+  task_definition        = aws_ecs_task_definition.app.arn
+  desired_count          = var.desired_count
+  launch_type            = "FARGATE"
   enable_execute_command = true
 
   network_configuration {

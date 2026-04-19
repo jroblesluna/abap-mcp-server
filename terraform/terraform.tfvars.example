@@ -1,242 +1,118 @@
 # ============================================================================
-# Terraform Variables for ABAP Accelerator MCP Server
-# PGE Configuration - NonProd Environment (Fully Private/Internal)
+# ABAP MCP Server - Terraform Configuration
+# ============================================================================
+# Environment: Dev (NonProd - Internal Only)
+# Deployment: ECS Fargate + ALB + Route53 (multi-account)
+# External: OAuth (Entra ID), CA certificates, SAP systems via Parameter Store
 # ============================================================================
 
 # ============================================================================
-# Basic Configuration
+# AWS Accounts
 # ============================================================================
 
 region       = "us-west-2"
-environment  = "Dev"  # Must be capital D for PGE compliance
+environment  = "Dev"
 project_name = "abap-mcp-server"
 
-# ============================================================================
-# PGE Standard Variables (for TFC)
-# ============================================================================
+# Application Account (ECS, ALB, Secrets Manager)
+account_num = "064160142714"
+aws_role    = "CloudAdmin"
 
-account_num     = "064160142714" # Application account
-aws_role        = "CloudAdmin"   # AWS role for Terraform operations
-account_num_r53 = "514712703977" # Route53 account (cross-account)
-aws_r53_role    = "TFCBR53Role"  # Route53 role (cross-account)
-
-# AWS CLI Profiles (for local dev only, NOT used in TFC)
-# TFC uses assume_role with account_num/aws_role instead
-# profile         = "CloudAdminNonProdAccess-064160142714" # Application account (064)
-# route53_profile = "CloudAdminNonProdAccess-514712703977" # Route53 account (514)
+# Route53 Account (DNS management)
+account_num_r53 = "514712703977"
+aws_r53_role    = "TFCBR53Role"
 
 # ============================================================================
-# Network Configuration (Fully Private)
+# Networking
 # ============================================================================
 
-# Existing VPC from MCP project
 vpc_id = "vpc-0f991a507e8e58aa1"
 
-# Private subnets for ECS Fargate tasks AND internal ALB
-# ALB with sticky sessions enabled for multi-task HA
 private_subnet_ids = [
-  "subnet-009076f40b21b0adf", # us-west-2a - Enterprise AI Gateway-Dev-PrivateSubnet1
-  "subnet-075d0438fa8ebac6a", # us-west-2b - Enterprise AI Gateway-Dev-PrivateSubnet2
-  "subnet-0a22706e08d2a983f", # us-west-2c - Enterprise AI Gateway-Dev-PrivateSubnet3
+  "subnet-009076f40b21b0adf", # us-west-2a
+  "subnet-075d0438fa8ebac6a", # us-west-2b
+  "subnet-0a22706e08d2a983f", # us-west-2c
 ]
 
-# ============================================================================
-# ECS Configuration
-# ============================================================================
-
-# Using working image
-container_image = "064160142714.dkr.ecr.us-west-2.amazonaws.com/abap-mcp-server:20260411150746"
-
-# ECR repository URL (without tag)
-ecr_repository_url = "064160142714.dkr.ecr.us-west-2.amazonaws.com/abap-mcp-server"
-
-# Docker image tag
-image_tag = "20260411150746"
-
-# CPU and memory for Fargate tasks
-container_cpu    = 512  # 0.5 vCPU
-container_memory = 1024 # 1 GB
-
-# Number of tasks to run
-# Using 1 task - MCP sessions are stateful and stored in task memory
-# Single task simplifies session management (no sticky sessions needed)
-desired_count = 1
-
-# Container port (matches Dockerfile.simple)
-container_port = 8000
+allowed_cidr_blocks = ["0.0.0.0/0"]
 
 # ============================================================================
-# Application Configuration
+# DNS
 # ============================================================================
 
-# Enable enterprise features (multi-system support)
-enable_enterprise_mode = true
+route53_hosted_zone_name = "nonprod.pge.com"
+application_hostname     = "abap-mcp-server"
+use_private_zone         = true
 
-# Enable certificate-based authentication with IAM Identity Center
-# Set to false if you don't have CA certificates configured yet
+# ============================================================================
+# Container
+# ============================================================================
+
+container_image  = "064160142714.dkr.ecr.us-west-2.amazonaws.com/abap-mcp-server:20260418193204"
+container_cpu    = 512
+container_memory = 1024
+container_port   = 8000
+desired_count    = 1
+
+# ============================================================================
+# Application
+# ============================================================================
+
+enable_enterprise_mode       = true
 enable_principal_propagation = true
+enable_oauth_flow            = false
+credential_provider          = "aws_secrets"
+ssl_verify                   = "true"
 
-# Credential provider for ECS Fargate (aws_secrets for multi-system)
-credential_provider = "aws_secrets"
-
-# ============================================================================
-# SAP Connection - SINGLE SYSTEM MODE (Not used when enterprise_mode = true)
-# ============================================================================
-# These variables are only used when enable_enterprise_mode = false
-# For multi-system mode, see sap_systems_yaml below
-
-# sap_host            = "sapdv8db1.comp.pge.com"
-# sap_instance_number = "00"
-# sap_client          = "120"
-# sap_language        = "EN"
-# sap_secure          = "true"
-# ssl_verify          = "false"
-# sap_port            = "1443"
-
-# Still used in both modes:
-sap_host                    = "" # Not used in enterprise mode
-sap_instance_number         = "00"
-sap_client                  = "100"
-sap_language                = "EN"
-sap_secure                  = "true"
-ssl_verify                  = "false"
-sap_port                    = "44300"
 log_level                   = "INFO"
 enable_http_request_logging = "false"
 
 # ============================================================================
-# Route53 and SSL/TLS Configuration (Multi-Account)
+# Secrets (Managed Externally)
 # ============================================================================
 
-# Route53 hosted zone name (from Route53 account)
-route53_hosted_zone_name = "nonprod.pge.com"
-
-# Application hostname
-# Result: abap-mcp-server.nonprod.pge.com
-application_hostname = "abap-mcp-server"
-
-# Use private hosted zone (true = internal DNS only)
-use_private_zone = true
+ca_secret_name              = "mcp/abap-mcp-server/ca-certificate"
+oauth_secret_name           = "mcp/abap-mcp-server/oauth-credentials"
+jwt_signing_key_secret_name = "mcp/abap-mcp-server/jwt-signing-key"
 
 # ============================================================================
-# SAP System Configuration
+# SSM Parameters (Created via scripts/create-aws-parameters.sh)
 # ============================================================================
 
-# Not used with main.py (only needed for enterprise_main.py multi-system support)
-sap_endpoints_json   = ""
-user_exceptions_json = ""
-
-# SAP systems configuration for multi-system mode (credentials stored in AWS Secrets Manager)
-sap_systems_yaml = <<-EOT
-systems:
-  DV8:
-    host: sapdv8db1.comp.pge.com
-    port: 1443
-    client: 120
-    instance_number: "00"
-    language: EN
-    secure: true
-    ssl_verify: false
-    description: SAP Development System DV8 Client 120
-    secret_name: mcp/abap-mcp-server/DV8
-  MS1:
-    host: vhpgxms1ci.s4hc.pge.com
-    port: 44300
-    client: 100
-    instance_number: "00"
-    language: EN
-    secure: true
-    ssl_verify: false
-    description: SAP Development System MS1 Client 100
-    secret_name: mcp/abap-mcp-server/MS1
-  MD1:
-    host: vhpgxmd1ci.s4hc.pge.com
-    port: 44300
-    client: 100
-    instance_number: "00"
-    language: EN
-    secure: true
-    ssl_verify: false
-    description: SAP Development System MD1 Client 100
-    secret_name: mcp/abap-mcp-server/MD1
-EOT
+sap_endpoints_parameter   = "/mcp/abap-mcp-server/sap-endpoints"
+user_exceptions_parameter = "/mcp/abap-mcp-server/user-exceptions"
 
 # ============================================================================
-# Security Configuration
+# OAuth (Microsoft Entra ID)
 # ============================================================================
 
-# CIDR blocks allowed to access the internal ALB
-# Allow all traffic from VPC and connected networks (ALB is internal, only accessible via VPC)
-allowed_cidr_blocks = [
-  "0.0.0.0/0" # Allow all (ALB is internal anyway)
-]
+oauth_issuer         = "https://login.microsoftonline.com/fb04c3d4-53a6-4c0a-b26e-55f336322657/v2.0"
+oauth_auth_endpoint  = "https://login.microsoftonline.com/fb04c3d4-53a6-4c0a-b26e-55f336322657/oauth2/v2.0/authorize"
+oauth_token_endpoint = "https://login.microsoftonline.com/fb04c3d4-53a6-4c0a-b26e-55f336322657/oauth2/v2.0/token"
+oauth_client_id      = "128a32b7-358e-4f9d-915d-2dd7d7d34bbb"
+server_base_url      = "https://abap-mcp-server.nonprod.pge.com"
 
 # ============================================================================
-# Monitoring and Logging
+# Monitoring
 # ============================================================================
 
-# Enable CloudWatch Container Insights
 enable_container_insights = true
-
-# Log retention period
-log_retention_days = 30
+log_retention_days        = 30
 
 # ============================================================================
-# Tags (matching PGE MCP project standards)
+# Tags
 # ============================================================================
 
 tags = {
   Project            = "ABAP-MCP-Server"
-  Env                = "dev"
+  Environment        = "Dev"
   AppID              = "APP-3601"
   Order              = "70053108"
-  Environment        = "Dev"
   Compliance         = "None"
   DataClassification = "Internal"
   CRIS               = "Low"
   Notify             = "avrg@pge.com_m7k3@pge.com_mq28@pge.com"
-  Owner              = "avrg_m7k3_mq28"  # Three owners separated by underscore (AMPS Director, Client Owner, IT Lead)
+  Owner              = "avrg_m7k3_mq28"
   ManagedBy          = "Terraform"
   Application        = "MCP-Server"
 }
-
-# ============================================================================
-# Certificate Configuration (Principal Propagation)
-# ============================================================================
-
-# Certificate management mode
-# - "existing" = Use existing secret in AWS Secrets Manager (DEV - current approach)
-# - "create"   = Create new secret using PGE module (PROD - future approach)
-certificate_mode = "existing"
-
-# Name of existing CA certificate secret in AWS Secrets Manager (when certificate_mode = "existing")
-# This secret should contain JSON: {"ca_cert": "-----BEGIN CERTIFICATE-----...", "ca_key": "-----BEGIN PRIVATE KEY-----..."}
-existing_ca_secret_name = "mcp/abap-mcp-server/ca-certificate"
-
-# Note: For "create" mode (when moving to prod):
-# - Set certificate_mode = "create"
-# - Certificates read from terraform/certificates/ directory or TFC variables
-# - Public cert: terraform/certificates/abap-mcp-ca-cert.pem (committed to repo)
-# - Private key: TFC variable "ca_key_pem" (sensitive)
-cert_recovery_window_days = 0  # Force immediate deletion for terraform destroy
-
-# ============================================================================
-# OAuth Configuration (Cognito)
-# ============================================================================
-
-enable_cognito          = true
-cognito_user_pool_name  = "abap-mcp-server-user-pool"
-cognito_app_client_name = "abap-mcp-server"
-cognito_domain_prefix   = "pge-abap-mcp-dev"  # Must be globally unique - Forces ManagedLoginVersion 2
-cognito_callback_urls   = [
-  "https://abap-mcp-server.nonprod.pge.com/oauth/callback",  # Production
-  "http://localhost:8009/oauth/callback",                     # Hoot MCP Inspector
-  "http://localhost:8000/oauth/callback"                      # Local MCP Server (Docker)
-]
-
-# Optional: SNS configuration for SMS (leave empty to disable SMS)
-cognito_sns_caller_arn  = "arn:aws:iam::064160142714:role/service-role/CognitoIdpSNSServiceRole"
-cognito_sns_external_id = "7467116d-f9da-4756-aa46-da69aba15e37"
-
-# Server base URL (used for OAuth callbacks)
-server_base_url = "https://abap-mcp-server.nonprod.pge.com"

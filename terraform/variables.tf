@@ -15,7 +15,6 @@ variable "account_num" {
 variable "aws_role" {
   type        = string
   description = "AWS role to assume for Terraform operations"
-  default     = "CloudAdmin"
 }
 
 variable "account_num_r53" {
@@ -77,14 +76,15 @@ variable "container_image" {
 }
 
 variable "ecr_repository_url" {
-  description = "ECR repository URL (without tag)"
+  description = "ECR repository URL (without tag) - for outputs only"
   type        = string
+  default     = ""
 }
 
 variable "image_tag" {
-  description = "Docker image tag"
+  description = "Docker image tag - for outputs only"
   type        = string
-  default     = "working"
+  default     = ""
 }
 
 variable "container_cpu" {
@@ -121,39 +121,24 @@ variable "enable_principal_propagation" {
   type        = bool
 }
 
-variable "certificate_mode" {
-  description = "Certificate management mode: 'existing' = use existing secret in AWS (dev), 'create' = create new secret with PGE module (prod)"
-  type        = string
-  default     = "existing"
-  validation {
-    condition     = contains(["existing", "create"], var.certificate_mode)
-    error_message = "certificate_mode must be either 'existing' or 'create'"
-  }
+variable "enable_oauth_flow" {
+  description = "Enable OAuth authentication flow"
+  type        = bool
 }
 
-variable "existing_ca_secret_name" {
-  description = "Name of existing CA certificate secret in AWS Secrets Manager (used when certificate_mode = 'existing')"
+variable "ca_secret_name" {
+  description = "Name of CA certificate secret in AWS Secrets Manager (managed externally)"
   type        = string
-  default     = ""
 }
 
-variable "ca_cert_pem" {
-  description = "CA certificate in PEM format (used when certificate_mode = 'create')"
+variable "sap_endpoints_parameter" {
+  description = "SSM Parameter Store path for SAP endpoints configuration"
   type        = string
-  default     = ""
 }
 
-variable "ca_key_pem" {
-  description = "CA private key in PEM format (used when certificate_mode = 'create', use TFC sensitive variable)"
+variable "user_exceptions_parameter" {
+  description = "SSM Parameter Store path for user exceptions mapping"
   type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "cert_recovery_window_days" {
-  description = "Recovery window in days for CA certificate secret deletion (used when certificate_mode = 'create')"
-  type        = number
-  default     = 7
 }
 
 variable "credential_provider" {
@@ -190,47 +175,34 @@ variable "use_private_zone" {
 # SAP System Configuration
 # ============================================================================
 
-variable "sap_endpoints_json" {
-  description = "JSON string containing SAP system endpoints (will be stored in Parameter Store)"
-  type        = string
-  sensitive   = true
-}
-
-variable "user_exceptions_json" {
-  description = "JSON string containing user exception mappings (optional)"
-  type        = string
-  default     = ""
-}
-
-variable "sap_systems_yaml" {
-  description = "YAML string containing SAP systems configuration for multi-system mode (credentials stored separately in Secrets Manager)"
-  type        = string
-  default     = ""
-}
-
 variable "sap_host" {
-  description = "SAP system host (for direct environment variable configuration)"
+  description = "SAP system host - not used in enterprise mode (systems in Parameter Store)"
   type        = string
+  default     = ""
 }
 
 variable "sap_instance_number" {
-  description = "SAP instance number"
+  description = "SAP instance number - not used in enterprise mode"
   type        = string
+  default     = "00"
 }
 
 variable "sap_client" {
-  description = "SAP client number"
+  description = "SAP client number - not used in enterprise mode"
   type        = string
+  default     = "100"
 }
 
 variable "sap_language" {
-  description = "SAP language code (e.g., EN, DE, ES)"
+  description = "SAP language code - not used in enterprise mode"
   type        = string
+  default     = "EN"
 }
 
 variable "sap_secure" {
-  description = "Use HTTPS for SAP connection (true/false)"
+  description = "Use HTTPS for SAP connection - not used in enterprise mode"
   type        = string
+  default     = "true"
 }
 
 variable "ssl_verify" {
@@ -239,8 +211,9 @@ variable "ssl_verify" {
 }
 
 variable "sap_port" {
-  description = "SAP system port"
+  description = "SAP system port - not used in enterprise mode"
   type        = string
+  default     = "44300"
 }
 
 variable "log_level" {
@@ -253,39 +226,38 @@ variable "log_level" {
 # ============================================================================
 
 variable "oauth_auth_endpoint" {
-  description = "OAuth authorization endpoint (e.g., https://cognito-domain.auth.region.amazoncognito.com/oauth2/authorize)"
+  description = "OAuth authorization endpoint - Examples: Cognito: https://domain.auth.region.amazoncognito.com/oauth2/authorize, Entra ID: https://login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize, Okta: https://domain.okta.com/oauth2/v1/authorize"
   type        = string
-  default     = ""
 }
 
 variable "oauth_token_endpoint" {
-  description = "OAuth token endpoint (e.g., https://cognito-domain.auth.region.amazoncognito.com/oauth2/token)"
+  description = "OAuth token endpoint - Examples: Cognito: https://domain.auth.region.amazoncognito.com/oauth2/token, Entra ID: https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token, Okta: https://domain.okta.com/oauth2/v1/token"
   type        = string
-  default     = ""
 }
 
 variable "oauth_client_id" {
-  description = "OAuth client ID"
+  description = "OAuth client ID (application ID from your OAuth provider: Cognito, Entra ID, Okta, etc.)"
   type        = string
-  default     = ""
 }
 
 variable "oauth_issuer" {
-  description = "OAuth issuer URL for OIDC discovery (e.g., https://cognito-idp.region.amazonaws.com/pool-id)"
+  description = "OAuth issuer URL for OIDC discovery - Examples: Cognito: https://cognito-idp.region.amazonaws.com/pool-id, Entra ID: https://login.microsoftonline.com/<tenant>/v2.0, Okta: https://domain.okta.com"
   type        = string
-  default     = ""
 }
 
 variable "server_base_url" {
-  description = "Server base URL for OAuth callbacks (e.g., https://abap-mcp-server.nonprod.pge.com)"
+  description = "Server base URL for OAuth callbacks (e.g., https://abap-mcp-server.nonprod.pge.com) - Required for OAuth redirect URIs"
   type        = string
-  default     = ""
 }
 
-variable "oauth_secret_arn" {
-  description = "ARN of OAuth credentials secret in AWS Secrets Manager (contains client_id and client_secret)"
+variable "oauth_secret_name" {
+  description = "Name of OAuth credentials secret in AWS Secrets Manager (contains client_secret)"
   type        = string
-  default     = ""
+}
+
+variable "jwt_signing_key_secret_name" {
+  description = "Name of JWT signing key secret in AWS Secrets Manager"
+  type        = string
 }
 
 variable "enable_http_request_logging" {
@@ -293,51 +265,8 @@ variable "enable_http_request_logging" {
   type        = string
 }
 
-# ============================================================================
-# Cognito Configuration (Optional - for managed User Pool)
-# ============================================================================
-
-variable "enable_cognito" {
-  description = "Enable Cognito User Pool creation (set to false to use existing User Pool)"
-  type        = bool
-  default     = false
-}
-
-variable "cognito_user_pool_name" {
-  description = "Name of the Cognito User Pool to create"
-  type        = string
-  default     = "abap-mcp-server-user-pool"
-}
-
-variable "cognito_app_client_name" {
-  description = "Name of the Cognito App Client to create"
-  type        = string
-  default     = "abap-mcp-server"
-}
-
-variable "cognito_domain_prefix" {
-  description = "Domain prefix for Cognito Hosted UI (must be globally unique)"
-  type        = string
-  default     = ""
-}
-
-variable "cognito_callback_urls" {
-  description = "List of allowed OAuth callback URLs"
-  type        = list(string)
-  default     = []
-}
-
-variable "cognito_sns_caller_arn" {
-  description = "ARN of IAM role for SNS (SMS configuration). Leave empty to disable SMS."
-  type        = string
-  default     = ""
-}
-
-variable "cognito_sns_external_id" {
-  description = "External ID for SNS role"
-  type        = string
-  default     = ""
-}
+# NOTE: All OAuth providers (Cognito, Entra ID, Okta) are managed externally
+# Configuration is provided via oauth_* variables above - no additional variables needed
 
 # ============================================================================
 # Security Configuration

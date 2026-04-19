@@ -103,6 +103,25 @@ class IAMIdentityValidator:
             if iam_identity:
                 return self._parse_oidc_identity(iam_identity)
             
+            # Portkey identity forwarding (user_identity_forwarding: claims_header)
+            claims_header = headers.get('x-user-claims') or headers.get('X-User-Claims')
+            if claims_header:
+                import json
+                try:
+                    claims = json.loads(claims_header)
+                    email = claims.get('email') or claims.get('sub')
+                    if email:
+                        logger.info(f"Using Portkey X-User-Claims for identity: {sanitize_for_logging(email)}")
+                        return {
+                            'login_identifier': email,
+                            'email': email,
+                            'user_id': email.split('@')[0] if '@' in email else email,
+                            'source': 'portkey-claims-header',
+                            'validated': True
+                        }
+                except Exception as e:
+                    logger.error(f"Failed to parse X-User-Claims: {e}")
+
             # Check for user context headers (fallback for development)
             user_id = headers.get('x-user-id')
             if user_id:

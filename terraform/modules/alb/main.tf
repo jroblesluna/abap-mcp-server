@@ -6,7 +6,7 @@
 
 resource "aws_lb" "main" {
   name               = "${var.name_prefix}-alb"
-  internal           = true  # Internal ALB - only accessible within VPC
+  internal           = true # Internal ALB - only accessible within VPC
   load_balancer_type = "application"
   subnets            = var.private_subnet_ids
   security_groups    = [var.alb_security_group_id]
@@ -38,7 +38,7 @@ resource "aws_lb_target_group" "app" {
     interval            = 30
     protocol            = "HTTP"
     path                = "/"
-    matcher             = "200-499"  # Accept 404 from FastMCP root path
+    matcher             = "200-499" # Accept 404 from FastMCP root path
   }
 
   # Sticky sessions disabled - not recommended for multiple tasks with stateful sessions
@@ -47,7 +47,7 @@ resource "aws_lb_target_group" "app" {
   stickiness {
     enabled         = false
     type            = "lb_cookie"
-    cookie_duration = 86400  # 24 hours
+    cookie_duration = 86400 # 24 hours
   }
 
   deregistration_delay = 30

@@ -113,7 +113,8 @@ resource "aws_iam_role_policy" "task_parameter_store" {
         ]
         Resource = [
           "arn:aws:ssm:${var.aws_region}:${var.account_id}:parameter/${var.name_prefix}/*",
-          "arn:aws:ssm:${var.aws_region}:${var.account_id}:parameter/abap-mcp-server/*"
+          "arn:aws:ssm:${var.aws_region}:${var.account_id}:parameter/abap-mcp-server/*",
+          "arn:aws:ssm:${var.aws_region}:${var.account_id}:parameter/mcp/abap-mcp-server/*"
         ]
       }
     ]

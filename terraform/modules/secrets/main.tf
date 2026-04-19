@@ -8,7 +8,7 @@ resource "aws_secretsmanager_secret" "ca_certificate" {
 
   name                    = "${var.name_prefix}/ca-certificate"
   description             = "CA certificate and private key for Principal Propagation"
-  recovery_window_in_days = 0  # Force immediate deletion without recovery period
+  recovery_window_in_days = 0 # Force immediate deletion without recovery period
 
   tags = merge(
     var.common_tags,

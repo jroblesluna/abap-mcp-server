@@ -94,6 +94,14 @@ data "aws_secretsmanager_secret" "sap_credentials" {
   name  = "mcp/abap-mcp-server"
 }
 
+data "aws_secretsmanager_secret" "oauth_credentials" {
+  name = var.oauth_secret_name
+}
+
+data "aws_secretsmanager_secret" "jwt_signing_key" {
+  name = var.jwt_signing_key_secret_name
+}
+
 # ============================================================================
 # CloudWatch Log Group
 # ============================================================================
@@ -197,60 +205,25 @@ module "alb" {
 # ============================================================================
 # Module: CA Certificates for Principal Propagation
 # ============================================================================
+# NOTE: Certificates managed externally - references existing Secrets Manager secret
 
 module "certificates" {
   source = "./modules/certificates"
 
-  # Certificate mode: "existing" = use existing AWS secret, "create" = create new secret with PGE module
-  certificate_mode     = var.certificate_mode
-  existing_secret_name = var.existing_ca_secret_name # Used when certificate_mode = "existing"
-
-  # Parameters for "create" mode (when switching to prod)
-  project_name            = var.project_name
-  ca_cert_pem             = var.ca_cert_pem # Optional: fallback if file doesn't exist
-  ca_key_pem              = var.ca_key_pem  # Optional: from TFC sensitive variable
-  recovery_window_in_days = var.cert_recovery_window_days
-  tags                    = local.common_tags
+  existing_secret_name = var.ca_secret_name
 }
 
 # ============================================================================
-# Module: Cognito User Pool (OAuth Authentication)
+# OAuth Provider Configuration
 # ============================================================================
-
-module "cognito" {
-  count  = var.enable_cognito ? 1 : 0
-  source = "./modules/cognito"
-
-  user_pool_name        = var.cognito_user_pool_name
-  app_client_name       = var.cognito_app_client_name
-  cognito_domain_prefix = var.cognito_domain_prefix
-  callback_urls         = var.cognito_callback_urls
-  oauth_secret_name            = "mcp/abap-mcp-server/oauth-credentials"
-  create_oauth_secret          = true  # Create new secret with Cognito credentials
-  enable_deletion_protection   = false # Allow terraform destroy to delete User Pool
-  oauth_secret_recovery_window = 0     # Immediate deletion without recovery window
-
-  aws_region = var.region
-
-  # Optional SMS configuration
-  sns_caller_arn  = var.cognito_sns_caller_arn
-  sns_external_id = var.cognito_sns_external_id
-
-  tags = local.common_tags
-}
-
-# ============================================================================
-# Module: Parameter Store (SAP Endpoints)
-# ============================================================================
-
-module "parameters" {
-  source = "./modules/parameters"
-
-  name_prefix          = local.name_prefix
-  sap_endpoints_json   = var.sap_endpoints_json
-  user_exceptions_json = var.user_exceptions_json
-  common_tags          = local.common_tags
-}
+# NOTE: Cognito User Pool should be created MANUALLY (not by Terraform)
+# This configuration only references existing OAuth providers:
+# - AWS Cognito (existing User Pool)
+# - Microsoft Entra ID
+# - Okta
+# - Custom OIDC provider
+#
+# All OAuth configuration is provided via terraform.tfvars variables
 
 # ============================================================================
 # Module: ECS Cluster and Service
@@ -286,6 +259,7 @@ module "ecs" {
   # Application Config
   enable_enterprise_mode       = var.enable_enterprise_mode
   enable_principal_propagation = var.enable_principal_propagation
+  enable_oauth_flow            = var.enable_oauth_flow
   credential_provider          = var.credential_provider
   aws_region                   = var.region
 
@@ -299,19 +273,23 @@ module "ecs" {
   sap_port                    = var.sap_port
   log_level                   = var.log_level
   enable_http_request_logging = var.enable_http_request_logging
-  sap_systems_yaml            = var.sap_systems_yaml
 
-  # OAuth Configuration (use Cognito module if enabled, otherwise use vars)
-  oauth_auth_endpoint  = var.enable_cognito ? module.cognito[0].oauth_auth_endpoint : var.oauth_auth_endpoint
-  oauth_token_endpoint = var.enable_cognito ? module.cognito[0].oauth_token_endpoint : var.oauth_token_endpoint
-  oauth_client_id      = var.enable_cognito ? module.cognito[0].app_client_id : var.oauth_client_id
-  oauth_issuer         = var.enable_cognito ? module.cognito[0].oauth_issuer : var.oauth_issuer
+  # OAuth Configuration (provider-agnostic: uses existing Cognito, Entra ID, Okta, etc.)
+  # All values from terraform.tfvars - NO auto-creation
+  oauth_auth_endpoint  = var.oauth_auth_endpoint
+  oauth_token_endpoint = var.oauth_token_endpoint
+  oauth_client_id      = var.oauth_client_id
+  oauth_issuer         = var.oauth_issuer
   server_base_url      = var.server_base_url
 
   # Secrets
   ca_certificate_secret_arn  = module.certificates.secret_arn
+  ca_secret_name             = var.ca_secret_name
   sap_credentials_secret_arn = var.enable_enterprise_mode ? "" : data.aws_secretsmanager_secret.sap_credentials[0].arn
-  oauth_secret_arn           = var.enable_cognito ? module.cognito[0].oauth_secret_arn : var.oauth_secret_arn
+  oauth_secret_arn           = data.aws_secretsmanager_secret.oauth_credentials.arn
+  jwt_signing_key_secret_arn = data.aws_secretsmanager_secret.jwt_signing_key.arn
+  sap_endpoints_parameter    = var.sap_endpoints_parameter
+  user_exceptions_parameter  = var.user_exceptions_parameter
 
   enable_container_insights = var.enable_container_insights
   common_tags               = local.common_tags

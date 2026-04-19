@@ -236,7 +236,7 @@ class EnterpriseABAPAcceleratorServer:
         # Connect to SAP
         connected = await sap_client_instance.connect()
         if not connected:
-            raise ValueError(f"Failed to connect to SAP system {sap_host}:{sap_port} with certificate auth")
+            raise ValueError(f"Failed to connect to SAP system {sap_host}:{sap_port} with certificate auth (Login Identifier: {login_identifier}, SAP username: {sap_username})")
         
         context_info = {
             'iam_identity': iam_identity,
@@ -450,7 +450,8 @@ class EnterpriseABAPAcceleratorServer:
             self.mcp.run(
                 transport=transport,
                 host=self.settings.server.host,
-                port=self.settings.server.port
+                port=self.settings.server.port,
+                stateless_http=True
             )
         except KeyboardInterrupt:
             logger.info("Server interrupted by user")
